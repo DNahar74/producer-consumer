@@ -41,6 +41,7 @@ export interface SimulationSnapshot {
   semaphores: Semaphore[];
   processes: Process[];
   buffer: BufferSlot[];
+  startTime: number | null;
   statistics: {
     totalItemsProduced: number;
     totalItemsConsumed: number;
@@ -58,6 +59,7 @@ export interface SimulationState {
   isPlaying: boolean;
   animationSpeed: number;
   history: SimulationSnapshot[];
+  startTime: number | null;
   statistics: {
     totalItemsProduced: number;
     totalItemsConsumed: number;
@@ -174,6 +176,7 @@ export function createInitialState(config: SimulationConfig = DEFAULT_CONFIG): S
     isPlaying: false,
     animationSpeed: config.animationSpeed,
     history: [],
+    startTime: null,
     statistics
   };
 }
@@ -192,6 +195,7 @@ export function createStateSnapshot(
     semaphores: JSON.parse(JSON.stringify(state.semaphores)),
     processes: JSON.parse(JSON.stringify(state.processes)),
     buffer: JSON.parse(JSON.stringify(state.buffer)),
+    startTime: state.startTime,
     statistics: { ...state.statistics }
   };
 }

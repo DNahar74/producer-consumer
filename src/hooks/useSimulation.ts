@@ -1,15 +1,15 @@
-import { useReducer } from 'react';
-import {
+import { useReducer, useEffect } from 'react';
+import type {
   SimulationState,
   SimulationAction,
-  SimulationConfig,
+  ProcessId,
+  Semaphore,
+  Process
+} from '../types/simulation';
+import {
   createInitialState,
   DEFAULT_CONFIG,
   isValidConfig,
-  ProcessId,
-  Semaphore,
-  Process,
-  BufferSlot,
   createStateSnapshot,
   getSemaphoreByName,
   getProcessById,
@@ -334,7 +334,8 @@ export function simulationReducer(
 
       return {
         ...state,
-        isPlaying: true
+        isPlaying: true,
+        startTime: state.startTime || Date.now()
       };
     }
 
@@ -522,6 +523,17 @@ export function useSimulation() {
     DEFAULT_CONFIG,
     createInitialState
   );
+
+  // Auto-play functionality using useEffect and setInterval
+  useEffect(() => {
+    if (state.isPlaying) {
+      const interval = setInterval(() => {
+        dispatch({ type: 'STEP_FORWARD' });
+      }, 1000 / state.animationSpeed);
+      
+      return () => clearInterval(interval);
+    }
+  }, [state.isPlaying, state.animationSpeed]);
 
   return {
     state,

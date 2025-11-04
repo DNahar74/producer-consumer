@@ -1,5 +1,9 @@
-import React from 'react';
+import { motion } from 'framer-motion';
+import { Eye } from 'lucide-react';
 import type { Semaphore, Process, BufferSlot, ProcessId } from '../types/simulation';
+import { SemaphoreVisualization } from './SemaphoreVisualization';
+import { BufferVisualization } from './BufferVisualization';
+import { ProcessVisualization } from './ProcessVisualization';
 
 interface VisualizationCanvasProps {
   semaphores: Semaphore[];
@@ -11,77 +15,54 @@ interface VisualizationCanvasProps {
 export const VisualizationCanvas: React.FC<VisualizationCanvasProps> = ({
   semaphores,
   processes,
-  buffer,
-  highlightedProcess
+  buffer
 }) => {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-4">Producer-Consumer Visualization</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <motion.div 
+      id="visualization-canvas" 
+      className="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-indigo-100"
+      initial={{ scale: 0.95, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.h2 
+        className="text-xl font-bold mb-6 text-gray-800 flex items-center"
+        initial={{ x: -20, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Eye className="mr-2 h-5 w-5 text-indigo-600" />
+        Producer-Consumer Visualization
+      </motion.h2>
+      
+      <div className="space-y-8">
         {/* Semaphores Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Semaphores</h3>
-          {semaphores.map((semaphore) => (
-            <div key={semaphore.name} className="p-3 border rounded-md">
-              <div className="font-medium capitalize">{semaphore.name}</div>
-              <div className="text-2xl font-bold">{semaphore.value}</div>
-              {semaphore.waitingQueue.length > 0 && (
-                <div className="text-sm text-gray-600">
-                  Waiting: {semaphore.waitingQueue.join(', ')}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <SemaphoreVisualization semaphores={semaphores} />
+        </motion.div>
+        
         {/* Buffer Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Shared Buffer</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {buffer.map((slot) => (
-              <div
-                key={slot.id}
-                className={`p-3 border rounded-md text-center ${
-                  slot.occupied ? 'bg-orange-200' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-sm">Slot {slot.id}</div>
-                {slot.item ? (
-                  <div className="text-xs text-gray-600">
-                    Item by {slot.item.producedBy}
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-400">Empty</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          <BufferVisualization buffer={buffer} />
+        </motion.div>
+        
         {/* Processes Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Processes</h3>
-          <div className="space-y-2">
-            {processes.map((process) => (
-              <div
-                key={process.id}
-                className={`p-3 border rounded-md ${
-                  process.type === 'producer' ? 'bg-blue-50' : 'bg-green-50'
-                } ${highlightedProcess === process.id ? 'ring-2 ring-yellow-400' : ''}`}
-              >
-                <div className="font-medium">{process.id}</div>
-                <div className="text-sm capitalize">{process.type}</div>
-                <div className="text-sm text-gray-600">State: {process.state}</div>
-                {process.currentOperation && (
-                  <div className="text-xs text-gray-500">
-                    {process.currentOperation}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4 }}
+        >
+          <ProcessVisualization processes={processes} />
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };

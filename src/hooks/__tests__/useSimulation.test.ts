@@ -614,6 +614,247 @@ describe('simulationReducer', () => {
     });
   });
 
+  describe('history management and state restoration', () => {
+    it('should create complete snapshots with all state data', () => {
+      let currentState = initialState;
+      
+      // Execute a step to create a snapshot
+      currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      
+      expect(currentState.history).toHaveLength(1);
+      const snapshot = currentState.history[0];
+      
+      // Verify snapshot contains all required data
+      expect(snapshot.stepNumber).toBe(1);
+      expect(snapshot.action).toBeTruthy();
+      expect(snapshot.processId).toBeTruthy();
+      expect(snapshot.semaphores).toHaveLength(3);
+      expect(snapshot.processes).toHaveLength(4); // 2 producers + 2 consumers
+      expect(snapshot.buffer).toHaveLength(5); // Default buffer size
+      expect(snapshot.statistics).toBeDefined();
+      expect(snapshot.statistics.totalItemsProduced).toBeGreaterThanOrEqual(0);
+      expect(snapshot.statistics.totalItemsConsumed).toBeGreaterThanOrEqual(0);
+      expect(snapshot.statistics.bufferUtilization).toBeGreaterThanOrEqual(0);
+      expect(snapshot.statistics.averageWaitTime).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should restore complete state from snapshots during STEP_BACKWARD', () => {
+      let currentState = initialState;
+      
+      // Execute several steps to create history
+      for (let i = 0; i < 4; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      }
+      
+      const stateAtStep4 = JSON.parse(JSON.stringify(currentState));
+      
+      // Step backward
+      currentState = simulationReducer(currentState, { type: 'STEP_BACKWARD' });
+      
+      // Verify state was restored to step 3
+      expect(currentState.currentStep).toBe(3);
+      expect(currentState.history).toHaveLength(3);
+      
+      // Verify all state components were restored
+      expect(currentState.semaphores).toHaveLength(3);
+      expect(currentState.processes).toHaveLength(4);
+      expect(currentState.buffer).toHaveLength(5);
+      
+      // Verify state is different from step 4
+      expect(currentState).not.toEqual(stateAtStep4);
+      
+      // Verify we can step forward again to recreate step 4
+      const forwardAgain = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      expect(forwardAgain.currentStep).toBe(4);
+    });
+
+    it('should restore complete state from snapshots during JUMP_TO_STEP', () => {
+      let currentState = initialState;
+      
+      // Execute several steps to create history
+      const stateSnapshots = [JSON.parse(JSON.stringify(currentState))];
+      
+      for (let i = 0; i < 5; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+        stateSnapshots.push(JSON.parse(JSON.stringify(currentState)));
+      }
+      
+      // Jump to step 2
+      const jumpedState = simulationReducer(currentState, { 
+        type: 'JUMP_TO_STEP', 
+        payload: 2 
+      });
+      
+      // Verify state was restored to step 2
+      expect(jumpedState.currentStep).toBe(2);
+      expect(jumpedState.history).toHaveLength(2);
+      
+      // Verify all state components match the snapshot at step 2
+      const originalStep2 = stateSnapshots[2];
+      expect(jumpedState.semaphores).toEqual(originalStep2.semaphores);
+      expect(jumpedState.processes).toEqual(originalStep2.processes);
+      expect(jumpedState.buffer).toEqual(originalStep2.buffer);
+      expect(jumpedState.statistics).toEqual(originalStep2.statistics);
+    });
+
+    it('should maintain history integrity during backward navigation', () => {
+      let currentState = initialState;
+      
+      // Execute steps to create history
+      for (let i = 0; i < 3; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      }
+      
+      expect(currentState.history).toHaveLength(3);
+      const originalHistory = [...currentState.history];
+      
+      // Step backward
+      currentState = simulationReducer(currentState, { type: 'STEP_BACKWARD' });
+      
+      // History should be truncated but remaining entries should be unchanged
+      expect(currentState.history).toHaveLength(2);
+      expect(currentState.history[0]).toEqual(originalHistory[0]);
+      expect(currentState.history[1]).toEqual(originalHistory[1]);
+    });
+
+    it('should handle multiple backward steps correctly', () => {
+      let currentState = initialState;
+      
+      // Execute steps forward
+      for (let i = 0; i < 5; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      }
+      
+      expect(currentState.currentStep).toBe(5);
+      
+      // Step backward multiple times
+      currentState = simulationReducer(currentState, { type: 'STEP_BACKWARD' });
+      expect(currentState.currentStep).toBe(4);
+      
+      currentState = simulationReducer(currentState, { type: 'STEP_BACKWARD' });
+      expect(currentState.currentStep).toBe(3);
+      
+      currentState = simulationReducer(currentState, { type: 'STEP_BACKWARD' });
+      expect(currentState.currentStep).toBe(2);
+      
+      // Verify state consistency
+      expect(currentState.history).toHaveLength(2);
+      
+      // Should be able to step forward again
+      currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      expect(currentState.currentStep).toBe(3);
+    });
+
+    it('should preserve animation settings during history navigation', () => {
+      let currentState = { ...initialState, animationSpeed: 2.5, isPlaying: true };
+      
+      // Execute steps
+      for (let i = 0; i < 3; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      }
+      
+      // Step backward
+      currentState = simulationReducer(currentState, { type: 'STEP_BACKWARD' });
+      
+      // Animation settings should be preserved
+      expect(currentState.animationSpeed).toBe(2.5);
+      expect(currentState.isPlaying).toBe(true);
+      
+      // Jump to step
+      currentState = simulationReducer(currentState, { 
+        type: 'JUMP_TO_STEP', 
+        payload: 1 
+      });
+      
+      // Animation settings should still be preserved
+      expect(currentState.animationSpeed).toBe(2.5);
+      expect(currentState.isPlaying).toBe(true);
+    });
+
+    it('should handle edge case: jump to current step', () => {
+      let currentState = initialState;
+      
+      // Execute steps
+      for (let i = 0; i < 3; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      }
+      
+      const beforeJump = JSON.parse(JSON.stringify(currentState));
+      
+      // Jump to current step (should be no-op)
+      currentState = simulationReducer(currentState, { 
+        type: 'JUMP_TO_STEP', 
+        payload: 3 
+      });
+      
+      // State should remain the same
+      expect(currentState).toEqual(beforeJump);
+    });
+
+    it('should create deep copies in snapshots to prevent mutation', () => {
+      let currentState = initialState;
+      
+      // Execute a step to create a snapshot
+      currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      
+      const snapshot = currentState.history[0];
+      const originalSnapshot = JSON.parse(JSON.stringify(snapshot));
+      
+      // Modify current state
+      currentState.semaphores[0].value = 999;
+      currentState.processes[0].itemsProcessed = 999;
+      currentState.buffer[0].occupied = true;
+      
+      // Snapshot should remain unchanged
+      expect(snapshot).toEqual(originalSnapshot);
+    });
+
+    it('should handle complex simulation state during restoration', () => {
+      let currentState = createInitialState({
+        bufferSize: 3,
+        producerCount: 3,
+        consumerCount: 2,
+        animationSpeed: 1.5
+      });
+      
+      // Execute many steps to create complex state
+      for (let i = 0; i < 15; i++) {
+        currentState = simulationReducer(currentState, { type: 'STEP_FORWARD' });
+      }
+      
+      const complexState = JSON.parse(JSON.stringify(currentState));
+      
+      // Jump back to middle of execution
+      const jumpedState = simulationReducer(currentState, { 
+        type: 'JUMP_TO_STEP', 
+        payload: 7 
+      });
+      
+      // Verify restoration worked correctly
+      expect(jumpedState.currentStep).toBe(7);
+      expect(jumpedState.history).toHaveLength(7);
+      expect(jumpedState.config).toEqual(complexState.config);
+      
+      // Verify state components are valid
+      expect(jumpedState.semaphores).toHaveLength(3);
+      expect(jumpedState.processes).toHaveLength(5); // 3 producers + 2 consumers
+      expect(jumpedState.buffer).toHaveLength(3);
+      
+      // All semaphore values should be valid
+      jumpedState.semaphores.forEach(semaphore => {
+        expect(semaphore.value).toBeGreaterThanOrEqual(0);
+        expect(Array.isArray(semaphore.waitingQueue)).toBe(true);
+      });
+      
+      // All processes should have valid states
+      jumpedState.processes.forEach(process => {
+        expect(['ready', 'running', 'waiting', 'blocked']).toContain(process.state);
+        expect(process.itemsProcessed).toBeGreaterThanOrEqual(0);
+        expect(process.totalWaitTime).toBeGreaterThanOrEqual(0);
+      });
+    });
+  });
+
   describe('state immutability', () => {
     it('should not mutate original state', () => {
       const originalState = createInitialState(DEFAULT_CONFIG);
